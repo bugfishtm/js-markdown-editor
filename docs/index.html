@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Editor</title>
+<script src="./jquery.min.js"></script>
+<script src="./marked.min.js"></script>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+
+<!-- META INJECTION START -->
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="subject" content="markdown editor">
+<meta name="copyright" content="bugfish">
+<meta name="language" content="en">
+<meta name="robots" content="index,follow">
+<meta name="author" content="bugfish, ynvnzmlzaa@gmail.com">
+<meta name="description" content="A private single-file Markdown editor. Write and preview Markdown live, navigate document structure, and download your files. No backend, no login.">
+<meta property="og:title" content="Markdown Editor">
+<meta property="og:description" content="A private single-file Markdown editor. Write and preview Markdown live, navigate document structure, and download your files. No backend, no login.">
+<meta property="og:image" content="/meta.jpg">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://bugfishtm.github.io/js-markdown-editor/">
+<script type="application/ld+json">
+{
+  "@context": "http://schema.org",
+  "@type": "WebSite",
+  "name": "Markdown Editor",
+  "url": "https://bugfishtm.github.io/js-markdown-editor/"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "http://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Markdown Editor",
+  "headline": "Markdown Editor — Private Single-File Writing Tool",
+  "description": "A private single-file Markdown editor. Write and preview Markdown live, navigate document structure, and download your files. No backend, no login.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any (browser-based)",
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23",
+  "author": {
+    "@type": "Person",
+    "name": "Jan-Maurice Dahlmanns"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Bugfish",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "/logo.jpg"
+    }
+  }
+}
+</script>
+<!-- META INJECTION END -->
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --border: #d8d8d8;
+  --border-light: #ebebeb;
+  --text: #1a1a1a;
+  --text-muted: #777;
+  --text-faint: #aaa;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: #eff6ff;
+  --toolbar-bg: #1e1e2e;
+  --toolbar-text: #e2e8f0;
+  --toolbar-border: #2d2d3f;
+  --toolbar-btn-hover: #2d2d3f;
+  --toolbar-btn-active: #3b3b52;
+  --sidebar-bg: #fafafa;
+  --editor-bg: #ffffff;
+  --preview-bg: #ffffff;
+  --outline-active: #eff6ff;
+  --outline-active-text: #2563eb;
+  --radius: 4px;
+  --shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  background: var(--toolbar-bg);
+  color: var(--toolbar-text);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  height: 44px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--toolbar-border);
+  z-index: 100;
+  user-select: none;
+}
+
+#toolbar .app-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  padding: 0 8px 0 4px;
+  margin-right: 4px;
+  border-right: 1px solid var(--toolbar-border);
+}
+
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: var(--toolbar-text);
+  padding: 5px 9px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  height: 30px;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.tb-btn:hover { background: var(--toolbar-btn-hover); }
+.tb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tb-btn.active { background: var(--toolbar-btn-active); color: #fff; }
+.tb-btn svg { flex-shrink: 0; }
+
+.tb-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--toolbar-border);
+  margin: 0 4px;
+}
+
+.tb-spacer { flex: 1; }
+
+#filename-display {
+  font-size: 12px;
+  color: #64748b;
+  padding: 0 8px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modified-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+  display: none;
+}
+.modified-dot.visible { display: inline-block; }
+
+/* ── Main Layout ── */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 220px;
+  min-width: 160px;
+  max-width: 320px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  flex-shrink: 0;
+}
+#sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right-color: transparent;
+  overflow: hidden;
+}
+
+#sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+#sidebar-header .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#outline-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 0 12px;
+}
+
+.outline-empty {
+  padding: 20px 12px;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.outline-item {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+  border-radius: 0;
+  padding: 3px 8px 3px 0;
+  position: relative;
+}
+.outline-item:hover .outline-label { background: var(--border-light); }
+.outline-item.active .outline-label {
+  background: var(--outline-active);
+  color: var(--outline-active-text);
+  font-weight: 500;
+}
+
+.outline-toggle {
+  flex-shrink: 0;
+  width: 16px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 9px;
+  margin-left: 2px;
+}
+.outline-toggle:empty { cursor: default; }
+.outline-toggle svg { transition: transform 0.15s; }
+.outline-toggle.open svg { transform: rotate(90deg); }
+
+.outline-label {
+  flex: 1;
+  padding: 2px 6px 2px 4px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.outline-children {
+  overflow: hidden;
+}
+.outline-children.collapsed { display: none; }
+
+/* ── Editor Pane ── */
+#editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--editor-bg);
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-light);
+  background: #fafafa;
+  flex-shrink: 0;
+  height: 34px;
+}
+.pane-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pane-info {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+#editor {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 20px 24px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Menlo', monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--editor-bg);
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  overflow-x: hidden;
+  word-wrap: break-word;
+}
+#editor::placeholder { color: var(--text-faint); }
+#editor:focus { outline: none; }
+
+/* ── Preview Pane ── */
+#preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--preview-bg);
+  min-width: 0;
+}
+#preview-pane.hidden {
+  width: 0;
+  flex: 0;
+  overflow: hidden;
+  border: none;
+}
+
+#preview-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 32px 40px;
+}
+
+/* ── Preview Typography ── */
+.md-body {
+  max-width: 720px;
+  margin: 0 auto;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.75;
+}
+.md-body h1, .md-body h2, .md-body h3,
+.md-body h4, .md-body h5, .md-body h6 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 1.8em;
+  margin-bottom: 0.5em;
+  color: #111;
+  scroll-margin-top: 8px;
+}
+.md-body h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; }
+.md-body h2 { font-size: 1.45em; border-bottom: 1px solid var(--border-light); padding-bottom: 0.25em; }
+.md-body h3 { font-size: 1.2em; }
+.md-body h4 { font-size: 1.05em; }
+.md-body h5 { font-size: 0.95em; color: var(--text-muted); }
+.md-body h6 { font-size: 0.875em; color: var(--text-muted); }
+.md-body p { margin-bottom: 1em; }
+.md-body a { color: var(--accent); text-decoration: none; }
+.md-body a:hover { text-decoration: underline; }
+.md-body code {
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88em;
+  color: #c7254e;
+}
+.md-body pre {
+  background: #1e1e2e;
+  border-radius: 6px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin-bottom: 1.2em;
+}
+.md-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e2e8f0;
+  font-size: 0.875em;
+  line-height: 1.6;
+}
+.md-body blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 0 0 1em 0;
+  padding: 8px 16px;
+  background: var(--accent-light);
+  color: var(--text-muted);
+  border-radius: 0 4px 4px 0;
+}
+.md-body ul, .md-body ol {
+  padding-left: 1.6em;
+  margin-bottom: 1em;
+}
+.md-body li { margin-bottom: 0.3em; }
+.md-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.2em;
+  font-size: 0.95em;
+}
+.md-body th, .md-body td {
+  border: 1px solid var(--border);
+  padding: 7px 12px;
+  text-align: left;
+}
+.md-body th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.875em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.md-body tr:nth-child(even) td { background: #fafafa; }
+.md-body img { max-width: 100%; border-radius: 4px; margin: 0.5em 0; }
+.md-body hr { border: none; border-top: 2px solid var(--border); margin: 2em 0; }
+.md-body strong { font-weight: 700; }
+.md-body em { font-style: italic; color: inherit; }
+.md-body del { text-decoration: line-through; color: var(--text-muted); }
+
+/* ── Drag overlay ── */
+#drag-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(37, 99, 235, 0.12);
+  border: 3px dashed var(--accent);
+  border-radius: 8px;
+  z-index: 9999;
+  pointer-events: none;
+  align-items: center;
+  justify-content: center;
+}
+#drag-overlay.active { display: flex; }
+#drag-overlay .drag-msg {
+  background: var(--accent);
+  color: #fff;
+  padding: 16px 28px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── Resize handle ── */
+.resize-handle {
+  width: 4px;
+  background: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.resize-handle:hover, .resize-handle.dragging {
+  background: var(--accent);
+}
+
+/* ── Status bar ── */
+#statusbar {
+  background: var(--toolbar-bg);
+  color: #64748b;
+  font-size: 11px;
+  padding: 0 14px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--toolbar-border);
+}
+#statusbar span { white-space: nowrap; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  #sidebar { width: 0; min-width: 0; }
+  #sidebar.mobile-open { width: 240px; min-width: 240px; position: absolute; top: 44px; left: 0; bottom: 22px; z-index: 50; box-shadow: 4px 0 12px rgba(0,0,0,0.15); }
+  #preview-pane { display: none; }
+  #preview-pane.mobile-preview { display: flex; }
+  #editor-pane { display: flex; }
+  #editor-pane.mobile-preview-mode { display: none; }
+  .resize-handle { display: none; }
+}
+
+/* hidden file input */
+#file-input { display: none; }
+
+/* icon utility */
+.icon { display: inline-flex; align-items: center; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Toolbar -->
+  <div id="toolbar" role="toolbar" aria-label="Editor actions">
+    <span class="app-title">MD Editor</span>
+
+    <button class="tb-btn" id="btn-new" title="New document (Ctrl+N)" aria-label="New document">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="3" y="1" width="10" height="14" rx="1.5"/>
+        <line x1="6" y1="5" x2="10" y2="5"/>
+        <line x1="6" y1="8" x2="10" y2="8"/>
+        <line x1="6" y1="11" x2="9" y2="11"/>
+      </svg>
+      New
+    </button>
+
+    <button class="tb-btn" id="btn-open" title="Open file (Ctrl+O)" aria-label="Open file">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M1.5 4.5A1.5 1.5 0 013 3h3.5l1.5 2H13a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"/>
+      </svg>
+      Open
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" id="btn-save" title="Save / Download (Ctrl+S)" aria-label="Download file">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M2 12v2h12v-2"/>
+        <line x1="8" y1="2" x2="8" y2="10"/>
+        <polyline points="5,7 8,10 11,7"/>
+      </svg>
+      Save
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" id="btn-toggle-outline" title="Toggle outline sidebar" aria-label="Toggle outline" aria-pressed="true">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <line x1="2" y1="4" x2="14" y2="4"/>
+        <line x1="5" y1="8" x2="14" y2="8"/>
+        <line x1="5" y1="12" x2="14" y2="12"/>
+        <line x1="2" y1="8" x2="3" y2="8"/>
+        <line x1="2" y1="12" x2="3" y2="12"/>
+      </svg>
+      Outline
+    </button>
+
+    <button class="tb-btn active" id="btn-toggle-preview" title="Toggle preview pane" aria-label="Toggle preview" aria-pressed="true">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="1.5" y="3" width="13" height="10" rx="1.5"/>
+        <line x1="8" y1="3" x2="8" y2="13"/>
+        <line x1="3" y1="6" x2="6.5" y2="6"/>
+        <line x1="3" y1="9" x2="6.5" y2="9"/>
+      </svg>
+      Preview
+    </button>
+
+    <div class="tb-spacer"></div>
+
+    <span class="modified-dot" id="modified-dot" title="Unsaved changes"></span>
+    <span id="filename-display">untitled.md</span>
+  </div>
+
+  <!-- Main area -->
+  <div id="main">
+
+    <!-- Sidebar -->
+    <div id="sidebar" role="navigation" aria-label="Document outline">
+      <div id="sidebar-header">
+        <span class="label">Outline</span>
+      </div>
+      <div id="outline-container" role="tree" aria-label="Heading structure">
+        <div class="outline-empty">Start writing headings<br>to see the outline.</div>
+      </div>
+    </div>
+
+    <div class="resize-handle" id="resize-sidebar" title="Drag to resize"></div>
+
+    <!-- Editor pane -->
+    <div id="editor-pane">
+      <div class="pane-header">
+        <span class="pane-label">Editor</span>
+        <span class="pane-info" id="cursor-info">Ln 1, Col 1</span>
+      </div>
+      <textarea
+        id="editor"
+        spellcheck="true"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        placeholder="Start writing Markdown here…&#10;&#10;Drag and drop a .md, .txt or .html file to open it."
+        aria-label="Markdown editor"
+      ></textarea>
+    </div>
+
+    <div class="resize-handle" id="resize-preview" title="Drag to resize"></div>
+
+    <!-- Preview pane -->
+    <div id="preview-pane" aria-label="Preview">
+      <div class="pane-header">
+        <span class="pane-label">Preview</span>
+      </div>
+      <div id="preview-content" role="main">
+        <div class="md-body" id="preview-body"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Status bar -->
+  <div id="statusbar" aria-label="Status">
+    <span id="stat-words">0 words</span>
+    <span id="stat-chars">0 chars</span>
+    <span id="stat-lines">0 lines</span>
+    <span id="stat-headings">0 headings</span>
+  </div>
+
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="file-input" accept=".md,.markdown,.txt,.html,.htm" aria-hidden="true">
+
+<!-- Drag overlay -->
+<div id="drag-overlay" aria-hidden="true">
+  <div class="drag-msg">Drop file to open</div>
+</div>
+
+<script>
+$(function () {
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let currentFilename = 'untitled.md';
+  let isModified = false;
+  let renderTimer = null;
+  let outlineData = [];
+  let dragCounter = 0;
+  let activeOutlineIndex = -1;
+  let isResizingSidebar = false;
+  let isResizingPreview = false;
+  let resizeStartX = 0;
+  let resizeStartWidth = 0;
+
+  const $editor        = $('#editor');
+  const $preview       = $('#preview-body');
+  const $outline       = $('#outline-container');
+  const $sidebar       = $('#sidebar');
+  const $previewPane   = $('#preview-pane');
+  const $editorPane    = $('#editor-pane');
+  const $modified      = $('#modified-dot');
+  const $filenameDisp  = $('#filename-display');
+  const $cursorInfo    = $('#cursor-info');
+  const $statWords     = $('#stat-words');
+  const $statChars     = $('#stat-chars');
+  const $statLines     = $('#stat-lines');
+  const $statHeadings  = $('#stat-headings');
+
+  // ── marked.js config ──────────────────────────────────────────────────
+  marked.setOptions({
+    gfm: true,
+    breaks: false,
+    mangle: false,
+    headerIds: false,
+  });
+
+  // Custom heading renderer to inject anchor IDs
+  const renderer = new marked.Renderer();
+  renderer.heading = function (text, level, raw) {
+    const id = slugify(raw);
+    return `<h${level} id="${id}">${text}</h${level}>\n`;
+  };
+
+  function slugify(str) {
+    return str
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'heading';
+  }
+
+  // ── Core rendering ─────────────────────────────────────────────────────
+  function renderPreview() {
+    const src = $editor.val();
+    const html = marked.parse(src, { renderer });
+    $preview.html(html);
+  }
+
+  function buildOutline() {
+    const src = $editor.val();
+    outlineData = parseHeadings(src);
+    renderOutline(outlineData);
+    updateStats(src);
+  }
+
+  // ── Heading parser ─────────────────────────────────────────────────────
+  function parseHeadings(src) {
+    const lines = src.split('\n');
+    const headings = [];
+    let inFence = false;
+
+    lines.forEach(function (line, idx) {
+      if (/^```/.test(line)) { inFence = !inFence; return; }
+      if (inFence) return;
+
+      const m = line.match(/^(#{1,6})\s+(.+)/);
+      if (m) {
+        headings.push({
+          level:    m[1].length,
+          text:     m[2].trim(),
+          raw:      m[2].trim(),
+          line:     idx,        // 0-based line index
+          offset:   src.split('\n').slice(0, idx).join('\n').length + (idx > 0 ? 1 : 0),
+          id:       slugify(m[2].trim()),
+          children: [],
+          collapsed: false,
+        });
+      }
+    });
+
+    return buildTree(headings);
+  }
+
+  function buildTree(flat) {
+    if (!flat.length) return [];
+    const root = [];
+    const stack = [];
+
+    flat.forEach(function (node) {
+      node.children = [];
+      node.collapsed = false;
+
+      while (stack.length && stack[stack.length - 1].level >= node.level) {
+        stack.pop();
+      }
+
+      if (stack.length === 0) {
+        root.push(node);
+      } else {
+        stack[stack.length - 1].children.push(node);
+      }
+      stack.push(node);
+    });
+
+    return root;
+  }
+
+  // ── Outline renderer ───────────────────────────────────────────────────
+  function renderOutline(tree) {
+    $outline.empty();
+
+    if (!tree.length) {
+      $outline.html('<div class="outline-empty">No headings found.<br>Add <code>#</code> headings to see the outline.</div>');
+      return;
+    }
+
+    let itemIndex = 0;
+
+    function buildNode(node, depth) {
+      const idx = itemIndex++;
+      const hasChildren = node.children && node.children.length > 0;
+      const paddingLeft = 12 + depth * 14;
+
+      const $item = $('<div class="outline-item" role="treeitem"></div>');
+      $item.attr('data-idx', idx);
+      $item.attr('data-line', node.line);
+      $item.attr('data-id', node.id);
+      $item.css('padding-left', paddingLeft + 'px');
+
+      const $toggle = $('<span class="outline-toggle"></span>');
+      if (hasChildren) {
+        $toggle.html(chevronSvg());
+        $toggle.addClass('open');
+      }
+      $item.append($toggle);
+
+      const $label = $('<span class="outline-label"></span>');
+      $label.text(node.text);
+      $label.attr('title', node.text);
+      $item.append($label);
+
+      const $wrap = $('<div></div>');
+      $wrap.append($item);
+
+      if (hasChildren) {
+        const $children = $('<div class="outline-children"></div>');
+        node.children.forEach(function (child) {
+          $children.append(buildNode(child, depth + 1));
+        });
+        $wrap.append($children);
+
+        $toggle.on('click', function (e) {
+          e.stopPropagation();
+          const open = $toggle.hasClass('open');
+          $toggle.toggleClass('open', !open);
+          $children.toggleClass('collapsed', open);
+        });
+      }
+
+      $item.on('click', function (e) {
+        if ($(e.target).is('.outline-toggle, .outline-toggle *')) return;
+        navigateTo(node, idx);
+      });
+
+      return $wrap;
+    }
+
+    tree.forEach(function (node) {
+      $outline.append(buildNode(node, 0));
+    });
+  }
+
+  function chevronSvg() {
+    return '<svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,1 6,4 2,7"/></svg>';
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────────────
+  function navigateTo(node, idx) {
+    // Mark active
+    $('.outline-item').removeClass('active');
+    $('[data-idx="' + idx + '"]').addClass('active');
+    activeOutlineIndex = idx;
+
+    // Scroll preview to heading
+    const previewEl = document.getElementById(node.id);
+    if (previewEl) {
+      previewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Move editor cursor/scroll to heading line
+    scrollEditorToLine(node.line);
+  }
+
+  function scrollEditorToLine(lineIdx) {
+    const el = $editor[0];
+    const src = el.value;
+    const lines = src.split('\n');
+
+    // Calculate character offset for the start of the target line
+    let offset = 0;
+    for (let i = 0; i < lineIdx && i < lines.length; i++) {
+      offset += lines[i].length + 1; // +1 for \n
+    }
+
+    // Set selection at that position
+    el.focus();
+    el.setSelectionRange(offset, offset + (lines[lineIdx] ? lines[lineIdx].length : 0));
+
+    // Scroll the textarea: approximate line height
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 22;
+    const targetScrollTop = lineIdx * lineHeight - el.clientHeight / 3;
+    el.scrollTop = Math.max(0, targetScrollTop);
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────
+  function updateStats(src) {
+    const lines  = src ? src.split('\n').length : 0;
+    const chars  = src ? src.length : 0;
+    const words  = src ? (src.match(/\S+/g) || []).length : 0;
+    const heads  = outlineData.length;
+
+    $statWords.text(words + (words === 1 ? ' word' : ' words'));
+    $statChars.text(chars + (chars === 1 ? ' char' : ' chars'));
+    $statLines.text(lines + (lines === 1 ? ' line' : ' lines'));
+    $statHeadings.text(countHeadings(outlineData) + ' headings');
+  }
+
+  function countHeadings(tree) {
+    let n = 0;
+    tree.forEach(function (node) {
+      n++;
+      n += countHeadings(node.children);
+    });
+    return n;
+  }
+
+  // ── Editor input ───────────────────────────────────────────────────────
+  $editor.on('input', function () {
+    markModified(true);
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(function () {
+      renderPreview();
+      buildOutline();
+    }, 150);
+  });
+
+  $editor.on('keyup click', function () {
+    updateCursorInfo();
+  });
+
+  function updateCursorInfo() {
+    const el = $editor[0];
+    const src = el.value;
+    const pos = el.selectionStart;
+    const before = src.substring(0, pos);
+    const ln  = (before.match(/\n/g) || []).length + 1;
+    const col = pos - before.lastIndexOf('\n');
+    $cursorInfo.text('Ln ' + ln + ', Col ' + col);
+  }
+
+  // Tab key support
+  $editor.on('keydown', function (e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const el = this;
+      const start = el.selectionStart;
+      const end   = el.selectionEnd;
+      const val   = el.value;
+      el.value = val.substring(0, start) + '  ' + val.substring(end);
+      el.selectionStart = el.selectionEnd = start + 2;
+      $(el).trigger('input');
+    }
+  });
+
+  // ── Modified state ─────────────────────────────────────────────────────
+  function markModified(state) {
+    isModified = state;
+    $modified.toggleClass('visible', state);
+  }
+
+  // ── File operations ────────────────────────────────────────────────────
+  function loadFile(file) {
+    if (!file) return;
+    const allowed = ['text/plain', 'text/html', 'text/markdown', 'text/x-markdown', ''];
+    const ext = file.name.split('.').pop().toLowerCase();
+    const allowedExts = ['md', 'markdown', 'txt', 'html', 'htm'];
+
+    if (!allowedExts.includes(ext)) {
+      alert('Unsupported file type. Please open .md, .markdown, .txt, or .html files.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      $editor.val(e.target.result);
+      currentFilename = file.name;
+      $filenameDisp.text(currentFilename);
+      markModified(false);
+      renderPreview();
+      buildOutline();
+      $editor[0].scrollTop = 0;
+      $editor[0].setSelectionRange(0, 0);
+      updateCursorInfo();
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function downloadFile() {
+    const content  = $editor.val();
+    const blob     = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement('a');
+    const filename = currentFilename.endsWith('.md') ? currentFilename : currentFilename.replace(/\.[^.]+$/, '') + '.md';
+    a.href         = url;
+    a.download     = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    markModified(false);
+  }
+
+  function newDocument() {
+    if (isModified && $editor.val().trim()) {
+      if (!confirm('You have unsaved changes. Create a new document anyway?')) return;
+    }
+    $editor.val('');
+    currentFilename = 'untitled.md';
+    $filenameDisp.text(currentFilename);
+    markModified(false);
+    renderPreview();
+    buildOutline();
+    $editor.focus();
+    updateCursorInfo();
+  }
+
+  // ── Toolbar buttons ────────────────────────────────────────────────────
+  $('#btn-new').on('click', newDocument);
+
+  $('#btn-open').on('click', function () {
+    $('#file-input').val('').trigger('click');
+  });
+
+  $('#file-input').on('change', function () {
+    if (this.files && this.files[0]) {
+      loadFile(this.files[0]);
+    }
+  });
+
+  $('#btn-save').on('click', downloadFile);
+
+  $('#btn-toggle-outline').on('click', function () {
+    const collapsed = $sidebar.hasClass('collapsed');
+    $sidebar.toggleClass('collapsed', !collapsed);
+    $(this).toggleClass('active', !collapsed);
+    $(this).attr('aria-pressed', String(!collapsed));
+  });
+
+  $('#btn-toggle-preview').on('click', function () {
+    const hidden = $previewPane.hasClass('hidden');
+    $previewPane.toggleClass('hidden', !hidden);
+    $(this).toggleClass('active', !hidden);
+    $(this).attr('aria-pressed', String(!hidden));
+    $('#resize-preview').toggle(!$previewPane.hasClass('hidden'));
+  });
+
+  // ── Drag & drop ────────────────────────────────────────────────────────
+  const $overlay = $('#drag-overlay');
+
+  $(document).on('dragenter', function (e) {
+    e.preventDefault();
+    dragCounter++;
+    $overlay.addClass('active');
+  });
+
+  $(document).on('dragleave', function (e) {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      $overlay.removeClass('active');
+    }
+  });
+
+  $(document).on('dragover', function (e) {
+    e.preventDefault();
+    e.originalEvent.dataTransfer.dropEffect = 'copy';
+  });
+
+  $(document).on('drop', function (e) {
+    e.preventDefault();
+    dragCounter = 0;
+    $overlay.removeClass('active');
+
+    const files = e.originalEvent.dataTransfer.files;
+    if (files && files.length > 0) {
+      loadFile(files[0]);
+    }
+  });
+
+  // ── Resize handles ─────────────────────────────────────────────────────
+  function initResize(handleId, getEl, getProp, setFn) {
+    let dragging = false;
+    let startX = 0;
+    let startVal = 0;
+
+    $('#' + handleId).on('mousedown', function (e) {
+      dragging = true;
+      startX = e.clientX;
+      startVal = getEl().width();
+      $('#' + handleId).addClass('dragging');
+      e.preventDefault();
+    });
+
+    $(document).on('mousemove', function (e) {
+      if (!dragging) return;
+      setFn(startVal, e.clientX - startX);
+    });
+
+    $(document).on('mouseup', function () {
+      if (dragging) {
+        dragging = false;
+        $('#' + handleId).removeClass('dragging');
+      }
+    });
+  }
+
+  initResize('resize-sidebar',
+    function () { return $sidebar; },
+    'width',
+    function (start, delta) {
+      const w = Math.max(140, Math.min(400, start + delta));
+      $sidebar.css('width', w + 'px').css('min-width', w + 'px');
+    }
+  );
+
+  initResize('resize-preview',
+    function () { return $previewPane; },
+    'width',
+    function (start, delta) {
+      const w = Math.max(200, Math.min(900, start - delta));
+      $previewPane.css('flex', 'none').css('width', w + 'px');
+    }
+  );
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────
+  $(document).on('keydown', function (e) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.key === 's') { e.preventDefault(); downloadFile(); }
+    if (ctrl && e.key === 'o') { e.preventDefault(); $('#btn-open').trigger('click'); }
+    if (ctrl && e.key === 'n') { e.preventDefault(); newDocument(); }
+  });
+
+  // ── Initial content ─────────────────────────────────────────────────────
+  const sample = [
+    '# Welcome to Markdown Editor',
+    '',
+    'A clean, focused writing environment for Markdown. Start typing to see the live preview update.',
+    '',
+    '## Getting Started',
+    '',
+    'You can write **bold text**, *italic text*, or `inline code` here.',
+    '',
+    '### Opening Files',
+    '',
+    'Use the **Open** button in the toolbar or drag and drop a `.md`, `.txt`, or `.html` file onto this window.',
+    '',
+    '### Saving',
+    '',
+    'Click **Save** (or press `Ctrl+S`) to download your document as a `.md` file.',
+    '',
+    '## Markdown Features',
+    '',
+    '### Lists',
+    '',
+    '- Item one',
+    '- Item two',
+    '  - Nested item',
+    '- Item three',
+    '',
+    '### Code Blocks',
+    '',
+    '```javascript',
+    'function greet(name) {',
+    '  return `Hello, ${name}!`;',
+    '}',
+    '```',
+    '',
+    '### Blockquotes',
+    '',
+    '> "The best writing is rewriting." — E.B. White',
+    '',
+    '### Tables',
+    '',
+    '| Feature       | Supported |',
+    '|---------------|-----------|',
+    '| Headings      | Yes       |',
+    '| Bold / Italic | Yes       |',
+    '| Tables        | Yes       |',
+    '| Code blocks   | Yes       |',
+    '',
+    '## Outline Navigation',
+    '',
+    'The left sidebar shows the document structure. Click any heading to jump to it in both the editor and the preview.',
+    '',
+    '### Collapsible Sections',
+    '',
+    'Click the arrow next to any section with sub-headings to collapse or expand it.',
+    '',
+    '## Keyboard Shortcuts',
+    '',
+    '| Shortcut  | Action        |',
+    '|-----------|---------------|',
+    '| `Ctrl+S`  | Save / Download |',
+    '| `Ctrl+O`  | Open file      |',
+    '| `Ctrl+N`  | New document   |',
+    '| `Tab`     | Indent (2 spaces) |',
+    '',
+  ].join('\n');
+
+  $editor.val(sample);
+  renderPreview();
+  buildOutline();
+  updateCursorInfo();
+
+});
+</script>
+</body>
+</html>
